@@ -60,6 +60,7 @@ func main() {
 	var ticker *time.Ticker
 
 	if Debug {
+		// Spawns off an emitter that blurts the length of the three channels every 2s
 		ticker = time.NewTicker(time.Second * 2)
 		go func(g chan string, r chan urlCode, d chan bool) {
 			for _ = range ticker.C {
@@ -88,6 +89,7 @@ func main() {
 	// spawn off the scanner
 	go scanStdIn(getChan)
 
+	// Collate the results
 	for i := range rChan {
 		count++
 
@@ -110,6 +112,7 @@ func main() {
 	}
 
 	if Debug {
+		// Stops the channel-length emitter
 		ticker.Stop()
 	}
 
@@ -123,6 +126,8 @@ func main() {
 	}
 }
 
+// scanStdIn takes a channel to pass inputted strings to,
+// and does so until EOF, whereafter it closes the channel
 func scanStdIn(getChan chan string) {
 	defer close(getChan)
 
@@ -138,28 +143,29 @@ func scanStdIn(getChan chan string) {
 
 }
 
+// getter takes a receive channel, send channel, and done channel,
+// running HTTP GETs for anything in the receive channel, returning
+// formatted responses to the send channel, and signalling completion
+// via the done channel
 func getter(getChan chan string, rChan chan urlCode, doneChan chan bool) {
+	defer func() { doneChan <- true }()
 
-	c := 0
 	for url := range getChan {
-		if Debug {
-			c++
-			color.Blue("Getting %s (%d)!", url, c)
-		}
 		s := time.Now()
 		response, err := http.Get(url)
 		d := time.Since(s)
 		if err != nil {
+			// We assume code 0 to be a non-HTTP error
 			rChan <- urlCode{url, 0, d}
 		} else {
-			response.Body.Close()
+			response.Body.Close() // else leak
 			rChan <- urlCode{url, response.StatusCode, d}
 		}
 
 		if SleepTime > 0 {
+			// Zzzzzzz
 			time.Sleep(SleepTime)
 		}
 	}
 
-	doneChan <- true
 }
