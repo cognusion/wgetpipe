@@ -14,6 +14,8 @@ It scans STDIN, spawning up to _-max_ getters at a time, which stream their resp
     	Maximium in-flight GET requests at a time (default 5)
   -nocolor
     	Don't colorize the output
+  -nodnscache
+    	Disable DNS caching
   -sleep duration
     	Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)
   -stats
