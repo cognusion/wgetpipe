@@ -13,24 +13,29 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fatih/color"
+	"github.com/viki-org/dnscache"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
 var (
-	MAX       int           // maximum number of outstanding HTTP get requests allowed
-	SleepTime time.Duration // Duration to sleep between GETter spawns
-	ErrOnly   bool          // Quiet unless 0 == Code >= 400
-	NoColor   bool          // Disable colorizing
-	Summary   bool          // Output final stats
-	Debug     bool          // Enable debugging
+	MAX        int           // maximum number of outstanding HTTP get requests allowed
+	SleepTime  time.Duration // Duration to sleep between GETter spawns
+	ErrOnly    bool          // Quiet unless 0 == Code >= 400
+	NoColor    bool          // Disable colorizing
+	NoDnsCache bool          // Disable DNS caching
+	Summary    bool          // Output final stats
+	Debug      bool          // Enable debugging
 )
 
 type urlCode struct {
 	Url  string
 	Code int
 	Dur  time.Duration
+	Err  error
 }
 
 func init() {
@@ -40,10 +45,24 @@ func init() {
 	flag.BoolVar(&Summary, "stats", false, "Output stats at the end")
 	flag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
 	flag.BoolVar(&Debug, "debug", false, "Enable debug output")
+	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
 	flag.Parse()
 
 	if NoColor {
 		color.NoColor = true
+	}
+
+	// Sets the default http client to use dnscache, because duh
+	if NoDnsCache == false {
+		res := dnscache.New(1 * time.Hour)
+		http.DefaultClient.Transport = &http.Transport{
+			MaxIdleConnsPerHost: 64,
+			Dial: func(network string, address string) (net.Conn, error) {
+				separator := strings.LastIndex(address, ":")
+				ip, _ := res.FetchOneString(address[:separator])
+				return net.Dial("tcp", ip+address[separator:])
+			},
+		}
 	}
 }
 
@@ -95,7 +114,7 @@ func main() {
 
 		if i.Code == 0 {
 			errors++
-			color.Red("%d %s %s\n", i.Code, i.Url, i.Dur.String())
+			color.Red("%d %s %s (%s)\n", i.Code, i.Url, i.Dur.String(), i.Err)
 		} else if i.Code < 400 {
 			if ErrOnly {
 				// skip
@@ -156,10 +175,10 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool) {
 		d := time.Since(s)
 		if err != nil {
 			// We assume code 0 to be a non-HTTP error
-			rChan <- urlCode{url, 0, d}
+			rChan <- urlCode{url, 0, d, err}
 		} else {
 			response.Body.Close() // else leak
-			rChan <- urlCode{url, response.StatusCode, d}
+			rChan <- urlCode{url, response.StatusCode, d, nil}
 		}
 
 		if SleepTime > 0 {
