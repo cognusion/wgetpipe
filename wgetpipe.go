@@ -17,7 +17,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -69,9 +71,11 @@ func init() {
 func main() {
 
 	start := time.Now()
-	getChan := make(chan string) //, MAX*2)
-	rChan := make(chan urlCode)
-	doneChan := make(chan bool)
+	getChan := make(chan string)       // Channel to stream URLs to get
+	rChan := make(chan urlCode)        // Channel to stream responses from the Gets
+	doneChan := make(chan bool)        // Channel to signal a getter is done
+	sigChan := make(chan os.Signal, 1) // Channel to stream signals
+	abortChan := make(chan bool, 1)    // Channel to tell the getters to abort
 	count := 0
 	error4s := 0
 	error5s := 0
@@ -88,9 +92,24 @@ func main() {
 		}(getChan, rChan, doneChan)
 	}
 
+	// Stream the signals we care about
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Signal handler
+	go func() {
+		<-sigChan
+		if Debug {
+			fmt.Println("Signal seen, sending abort!")
+		}
+		// Add an abort for each of the getters, plus the setter
+		for a := 0; a <= MAX; a++ {
+			abortChan <- true
+		}
+	}()
+
 	// Spawn off the getters
 	for g := 0; g < MAX; g++ {
-		go getter(getChan, rChan, doneChan)
+		go getter(getChan, rChan, doneChan, abortChan)
 	}
 
 	// Block until all the getters are done, and then close rChan
@@ -106,7 +125,7 @@ func main() {
 	}()
 
 	// spawn off the scanner
-	go scanStdIn(getChan)
+	go scanStdIn(getChan, abortChan)
 
 	// Collate the results
 	for i := range rChan {
@@ -147,11 +166,19 @@ func main() {
 
 // scanStdIn takes a channel to pass inputted strings to,
 // and does so until EOF, whereafter it closes the channel
-func scanStdIn(getChan chan string) {
+func scanStdIn(getChan chan string, abortChan chan bool) {
 	defer close(getChan)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
+		select {
+		case <-abortChan:
+			if Debug {
+				fmt.Println("scanner abort seen!")
+			}
+			break
+		default:
+		}
 		getChan <- scanner.Text()
 	}
 	// POST: we've seen EOF
@@ -166,19 +193,30 @@ func scanStdIn(getChan chan string) {
 // running HTTP GETs for anything in the receive channel, returning
 // formatted responses to the send channel, and signalling completion
 // via the done channel
-func getter(getChan chan string, rChan chan urlCode, doneChan chan bool) {
+func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortChan chan bool) {
 	defer func() { doneChan <- true }()
 
-	for url := range getChan {
-		s := time.Now()
-		response, err := http.Get(url)
-		d := time.Since(s)
-		if err != nil {
-			// We assume code 0 to be a non-HTTP error
-			rChan <- urlCode{url, 0, d, err}
-		} else {
-			response.Body.Close() // else leak
-			rChan <- urlCode{url, response.StatusCode, d, nil}
+	breaking := false
+
+	for breaking == false {
+		select {
+		case url := <-getChan:
+			s := time.Now()
+			response, err := http.Get(url)
+			d := time.Since(s)
+			if err != nil {
+				// We assume code 0 to be a non-HTTP error
+				rChan <- urlCode{url, 0, d, err}
+			} else {
+				response.Body.Close() // else leak
+				rChan <- urlCode{url, response.StatusCode, d, nil}
+			}
+		case <-abortChan:
+			if Debug {
+				fmt.Println("getter abort seen!")
+			}
+			breaking = true
+			break
 		}
 
 		if SleepTime > 0 {
