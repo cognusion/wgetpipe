@@ -70,7 +70,6 @@ func init() {
 
 func main() {
 
-	start := time.Now()
 	getChan := make(chan string)       // Channel to stream URLs to get
 	rChan := make(chan urlCode)        // Channel to stream responses from the Gets
 	doneChan := make(chan bool)        // Channel to signal a getter is done
@@ -80,17 +79,6 @@ func main() {
 	error4s := 0
 	error5s := 0
 	errors := 0
-	var ticker *time.Ticker
-
-	if Debug {
-		// Spawns off an emitter that blurts the length of the three channels every 2s
-		ticker = time.NewTicker(time.Second * 2)
-		go func(g chan string, r chan urlCode, d chan bool) {
-			for _ = range ticker.C {
-				fmt.Printf("Get: %d R: %d D: %d\n", len(g), len(r), len(d))
-			}
-		}(getChan, rChan, doneChan)
-	}
 
 	// Stream the signals we care about
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -125,6 +113,7 @@ func main() {
 	}()
 
 	// spawn off the scanner
+	start := time.Now()
 	go scanStdIn(getChan, abortChan)
 
 	// Collate the results
@@ -149,11 +138,6 @@ func main() {
 		}
 	}
 
-	if Debug {
-		// Stops the channel-length emitter
-		ticker.Stop()
-	}
-
 	elapsed := time.Since(start)
 
 	if Summary {
@@ -170,16 +154,21 @@ func scanStdIn(getChan chan string, abortChan chan bool) {
 	defer close(getChan)
 
 	scanner := bufio.NewScanner(os.Stdin)
+SCAN:
 	for scanner.Scan() {
 		select {
 		case <-abortChan:
 			if Debug {
 				fmt.Println("scanner abort seen!")
 			}
-			break
+			break SCAN
 		default:
 		}
+		if Debug {
+			fmt.Println("scanner sending...")
+		}
 		getChan <- scanner.Text()
+
 	}
 	// POST: we've seen EOF
 
@@ -196,27 +185,30 @@ func scanStdIn(getChan chan string, abortChan chan bool) {
 func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortChan chan bool) {
 	defer func() { doneChan <- true }()
 
-	breaking := false
-
-	for breaking == false {
+GETTING:
+	for url := range getChan {
 		select {
-		case url := <-getChan:
-			s := time.Now()
-			response, err := http.Get(url)
-			d := time.Since(s)
-			if err != nil {
-				// We assume code 0 to be a non-HTTP error
-				rChan <- urlCode{url, 0, d, err}
-			} else {
-				response.Body.Close() // else leak
-				rChan <- urlCode{url, response.StatusCode, d, nil}
-			}
 		case <-abortChan:
 			if Debug {
 				fmt.Println("getter abort seen!")
 			}
-			breaking = true
-			break
+			break GETTING
+		default:
+		}
+
+		if Debug {
+			fmt.Printf("getter getting %s\n", url)
+		}
+
+		s := time.Now()
+		response, err := http.Get(url)
+		d := time.Since(s)
+		if err != nil {
+			// We assume code 0 to be a non-HTTP error
+			rChan <- urlCode{url, 0, d, err}
+		} else {
+			response.Body.Close() // else leak
+			rChan <- urlCode{url, response.StatusCode, d, nil}
 		}
 
 		if SleepTime > 0 {
