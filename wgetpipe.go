@@ -81,11 +81,11 @@ func init() {
 
 func main() {
 
-	getChan := make(chan string)        // Channel to stream URLs to get
-	rChan := make(chan urlCode)         // Channel to stream responses from the Gets
-	doneChan := make(chan bool)         // Channel to signal a getter is done
-	sigChan := make(chan os.Signal, 1)  // Channel to stream signals
-	abortChan := make(chan bool, MAX+1) // Channel to tell the getters to abort
+	getChan := make(chan string)       // Channel to stream URLs to get
+	rChan := make(chan urlCode)        // Channel to stream responses from the Gets
+	doneChan := make(chan bool)        // Channel to signal a getter is done
+	sigChan := make(chan os.Signal, 1) // Channel to stream signals
+	abortChan := make(chan bool)       // Channel to tell the getters to abort
 	count := 0
 	error4s := 0
 	error5s := 0
@@ -99,10 +99,7 @@ func main() {
 		<-sigChan
 		DebugOut.Println("Signal seen, sending abort!")
 
-		// Add an abort for each of the getters, plus the setter
-		for a := 0; a <= MAX; a++ {
-			abortChan <- true
-		}
+		close(abortChan)
 	}()
 
 	// Spawn off the getters
@@ -162,12 +159,11 @@ func scanStdIn(getChan chan string, abortChan chan bool) {
 	defer close(getChan)
 
 	scanner := bufio.NewScanner(os.Stdin)
-SCAN:
 	for scanner.Scan() {
 		select {
 		case <-abortChan:
 			DebugOut.Println("scanner abort seen!")
-			break SCAN
+			return
 		default:
 		}
 		DebugOut.Println("scanner sending...")
