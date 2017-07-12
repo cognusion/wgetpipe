@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/viki-org/dnscache"
+	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -30,7 +32,10 @@ var (
 	NoColor    bool          // Disable colorizing
 	NoDnsCache bool          // Disable DNS caching
 	Summary    bool          // Output final stats
-	Debug      bool          // Enable debugging
+	debug      bool          // Enable debugging
+
+	OutFormat int         = log.Ldate | log.Ltime | log.Lshortfile
+	DebugOut  *log.Logger = log.New(ioutil.Discard, "[DEBUG] ", OutFormat)
 )
 
 type urlCode struct {
@@ -46,12 +51,18 @@ func init() {
 	flag.BoolVar(&NoColor, "nocolor", false, "Don't colorize the output")
 	flag.BoolVar(&Summary, "stats", false, "Output stats at the end")
 	flag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
-	flag.BoolVar(&Debug, "debug", false, "Enable debug output")
+	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
 	flag.Parse()
 
+	// Handle boring people
 	if NoColor {
 		color.NoColor = true
+	}
+
+	// Handle debug
+	if debug {
+		DebugOut = log.New(os.Stderr, "[DEBUG] ", OutFormat)
 	}
 
 	// Sets the default http client to use dnscache, because duh
@@ -86,9 +97,8 @@ func main() {
 	// Signal handler
 	go func() {
 		<-sigChan
-		if Debug {
-			fmt.Println("Signal seen, sending abort!")
-		}
+		DebugOut.Println("Signal seen, sending abort!")
+
 		// Add an abort for each of the getters, plus the setter
 		for a := 0; a <= MAX; a++ {
 			abortChan <- true
@@ -106,9 +116,7 @@ func main() {
 
 		for c := 0; c < MAX; c++ {
 			<-doneChan
-			if Debug {
-				fmt.Printf("Done %d/%d\n", c+1, MAX)
-			}
+			DebugOut.Printf("Done %d/%d\n", c+1, MAX)
 		}
 	}()
 
@@ -158,23 +166,17 @@ SCAN:
 	for scanner.Scan() {
 		select {
 		case <-abortChan:
-			if Debug {
-				fmt.Println("scanner abort seen!")
-			}
+			DebugOut.Println("scanner abort seen!")
 			break SCAN
 		default:
 		}
-		if Debug {
-			fmt.Println("scanner sending...")
-		}
+		DebugOut.Println("scanner sending...")
+
 		getChan <- scanner.Text()
 
 	}
 	// POST: we've seen EOF
-
-	if Debug {
-		fmt.Println("EOF seen")
-	}
+	DebugOut.Println("EOF seen")
 
 }
 
@@ -189,16 +191,12 @@ GETTING:
 	for url := range getChan {
 		select {
 		case <-abortChan:
-			if Debug {
-				fmt.Println("getter abort seen!")
-			}
+			DebugOut.Println("getter abort seen!")
 			break GETTING
 		default:
 		}
 
-		if Debug {
-			fmt.Printf("getter getting %s\n", url)
-		}
+		DebugOut.Printf("getter getting %s\n", url)
 
 		s := time.Now()
 		response, err := http.Get(url)
