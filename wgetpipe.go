@@ -81,11 +81,11 @@ func init() {
 
 func main() {
 
-	getChan := make(chan string)       // Channel to stream URLs to get
-	rChan := make(chan urlCode)        // Channel to stream responses from the Gets
-	doneChan := make(chan bool)        // Channel to signal a getter is done
-	sigChan := make(chan os.Signal, 1) // Channel to stream signals
-	abortChan := make(chan bool, 1)    // Channel to tell the getters to abort
+	getChan := make(chan string)        // Channel to stream URLs to get
+	rChan := make(chan urlCode)         // Channel to stream responses from the Gets
+	doneChan := make(chan bool)         // Channel to signal a getter is done
+	sigChan := make(chan os.Signal, 1)  // Channel to stream signals
+	abortChan := make(chan bool, MAX+1) // Channel to tell the getters to abort
 	count := 0
 	error4s := 0
 	error5s := 0
@@ -187,32 +187,36 @@ SCAN:
 func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortChan chan bool) {
 	defer func() { doneChan <- true }()
 
-GETTING:
-	for url := range getChan {
+	for {
 		select {
 		case <-abortChan:
 			DebugOut.Println("getter abort seen!")
-			break GETTING
-		default:
-		}
+			return
+		case url := <-getChan:
+			if url == "" {
+				// We assume an empty request is a closer
+				// as that simplifies our for{select{}} loop
+				// considerably
+				DebugOut.Println("getter empty request seen!")
+				return
+			}
+			DebugOut.Printf("getter getting %s\n", url)
 
-		DebugOut.Printf("getter getting %s\n", url)
+			s := time.Now()
+			response, err := http.Get(url)
+			d := time.Since(s)
+			if err != nil {
+				// We assume code 0 to be a non-HTTP error
+				rChan <- urlCode{url, 0, d, err}
+			} else {
+				response.Body.Close() // else leak
+				rChan <- urlCode{url, response.StatusCode, d, nil}
+			}
 
-		s := time.Now()
-		response, err := http.Get(url)
-		d := time.Since(s)
-		if err != nil {
-			// We assume code 0 to be a non-HTTP error
-			rChan <- urlCode{url, 0, d, err}
-		} else {
-			response.Body.Close() // else leak
-			rChan <- urlCode{url, response.StatusCode, d, nil}
-		}
-
-		if SleepTime > 0 {
-			// Zzzzzzz
-			time.Sleep(SleepTime)
+			if SleepTime > 0 {
+				// Zzzzzzz
+				time.Sleep(SleepTime)
+			}
 		}
 	}
-
 }
