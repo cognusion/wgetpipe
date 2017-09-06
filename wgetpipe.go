@@ -199,8 +199,8 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 		DebugOut.Println("scanner sending...")
 
 		getChan <- scanner.Text()
+		count++
 		if bar != nil {
-			count++
 			if bar.Total < count {
 				bar.Total += 1
 			}
@@ -208,7 +208,7 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 
 	}
 	// POST: we've seen EOF
-	DebugOut.Println("EOF seen")
+	DebugOut.Println("EOF seen after %d lines\n", count)
 
 }
 
