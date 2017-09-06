@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/cheggaaa/pb"
 	"github.com/fatih/color"
 	"github.com/viki-org/dnscache"
 	"io/ioutil"
@@ -32,6 +33,7 @@ var (
 	NoColor    bool          // Disable colorizing
 	NoDnsCache bool          // Disable DNS caching
 	Summary    bool          // Output final stats
+	useBar     bool          // Use progress bar
 	debug      bool          // Enable debugging
 
 	OutFormat int         = log.Ldate | log.Ltime | log.Lshortfile
@@ -53,6 +55,7 @@ func init() {
 	flag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
+	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
 	flag.Parse()
 
 	// Handle boring people
@@ -81,6 +84,7 @@ func init() {
 
 func main() {
 
+	var bar *pb.ProgressBar
 	getChan := make(chan string)       // Channel to stream URLs to get
 	rChan := make(chan urlCode)        // Channel to stream responses from the Gets
 	doneChan := make(chan bool)        // Channel to signal a getter is done
@@ -90,6 +94,11 @@ func main() {
 	error4s := 0
 	error5s := 0
 	errors := 0
+
+	// Set up the progress bar
+	if useBar {
+		bar = pb.New(0)
+	}
 
 	// Stream the signals we care about
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -119,30 +128,48 @@ func main() {
 
 	// spawn off the scanner
 	start := time.Now()
-	go scanStdIn(getChan, abortChan)
+	go scanStdIn(getChan, abortChan, bar)
 
+	if useBar {
+		bar.Start()
+	}
 	// Collate the results
 	for i := range rChan {
 		count++
 
+		if useBar {
+			bar.Increment()
+		}
 		if i.Code == 0 {
 			errors++
+			if useBar {
+				continue
+			}
 			color.Red("%d %s %s (%s)\n", i.Code, i.Url, i.Dur.String(), i.Err)
 		} else if i.Code < 400 {
-			if ErrOnly {
+			if ErrOnly || useBar {
 				// skip
 				continue
 			}
 			color.Green("%d %s %s\n", i.Code, i.Url, i.Dur.String())
 		} else if i.Code < 500 {
 			error4s++
+			if useBar {
+				continue
+			}
 			color.Yellow("%d %s %s\n", i.Code, i.Url, i.Dur.String())
 		} else {
 			error5s++
+			if useBar {
+				continue
+			}
 			color.Red("%d %s %s\n", i.Code, i.Url, i.Dur.String())
 		}
 	}
 
+	if useBar {
+		bar.Finish()
+	}
 	elapsed := time.Since(start)
 
 	if Summary {
@@ -155,7 +182,7 @@ func main() {
 
 // scanStdIn takes a channel to pass inputted strings to,
 // and does so until EOF, whereafter it closes the channel
-func scanStdIn(getChan chan string, abortChan chan bool) {
+func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 	defer close(getChan)
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -169,6 +196,9 @@ func scanStdIn(getChan chan string, abortChan chan bool) {
 		DebugOut.Println("scanner sending...")
 
 		getChan <- scanner.Text()
+		if bar != nil {
+			bar.Total += 1
+		}
 
 	}
 	// POST: we've seen EOF
