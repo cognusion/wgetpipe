@@ -34,6 +34,7 @@ var (
 	NoDnsCache bool          // Disable DNS caching
 	Summary    bool          // Output final stats
 	useBar     bool          // Use progress bar
+	totalGuess int           // Guesstimate of number of GETs (useful with -bar)
 	debug      bool          // Enable debugging
 
 	OutFormat int         = log.Ldate | log.Ltime | log.Lshortfile
@@ -56,6 +57,7 @@ func init() {
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
 	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
+	flag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
 	flag.Parse()
 
 	// Handle boring people
@@ -85,11 +87,11 @@ func init() {
 func main() {
 
 	var bar *pb.ProgressBar
-	getChan := make(chan string)       // Channel to stream URLs to get
-	rChan := make(chan urlCode)        // Channel to stream responses from the Gets
-	doneChan := make(chan bool)        // Channel to signal a getter is done
-	sigChan := make(chan os.Signal, 1) // Channel to stream signals
-	abortChan := make(chan bool)       // Channel to tell the getters to abort
+	getChan := make(chan string, MAX*10) // Channel to stream URLs to get
+	rChan := make(chan urlCode)          // Channel to stream responses from the Gets
+	doneChan := make(chan bool)          // Channel to signal a getter is done
+	sigChan := make(chan os.Signal, 1)   // Channel to stream signals
+	abortChan := make(chan bool)         // Channel to tell the getters to abort
 	count := 0
 	error4s := 0
 	error5s := 0
@@ -97,7 +99,7 @@ func main() {
 
 	// Set up the progress bar
 	if useBar {
-		bar = pb.New(0)
+		bar = pb.New(totalGuess)
 	}
 
 	// Stream the signals we care about
@@ -186,6 +188,7 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 	defer close(getChan)
 
 	scanner := bufio.NewScanner(os.Stdin)
+	count := int64(0)
 	for scanner.Scan() {
 		select {
 		case <-abortChan:
@@ -197,7 +200,10 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 
 		getChan <- scanner.Text()
 		if bar != nil {
-			bar.Total += 1
+			count++
+			if bar.Total < count {
+				bar.Total += 1
+			}
 		}
 
 	}
