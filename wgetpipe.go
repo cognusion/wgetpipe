@@ -44,6 +44,7 @@ var (
 type urlCode struct {
 	Url  string
 	Code int
+	Size int64
 	Dur  time.Duration
 	Err  error
 }
@@ -147,25 +148,25 @@ func main() {
 			if useBar {
 				continue
 			}
-			color.Red("%d %s %s (%s)\n", i.Code, i.Url, i.Dur.String(), i.Err)
+			color.Red("%d (%s) %s %s (%s)\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String(), i.Err)
 		} else if i.Code < 400 {
 			if ErrOnly || useBar {
 				// skip
 				continue
 			}
-			color.Green("%d %s %s\n", i.Code, i.Url, i.Dur.String())
+			color.Green("%d (%s) %s %s\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String())
 		} else if i.Code < 500 {
 			error4s++
 			if useBar {
 				continue
 			}
-			color.Yellow("%d %s %s\n", i.Code, i.Url, i.Dur.String())
+			color.Yellow("%d (%s) %s %s\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String())
 		} else {
 			error5s++
 			if useBar {
 				continue
 			}
-			color.Red("%d %s %s\n", i.Code, i.Url, i.Dur.String())
+			color.Red("%d (%s) %s %s\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String())
 		}
 	}
 
@@ -239,10 +240,10 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 			d := time.Since(s)
 			if err != nil {
 				// We assume code 0 to be a non-HTTP error
-				rChan <- urlCode{url, 0, d, err}
+				rChan <- urlCode{url, 0, 0, d, err}
 			} else {
 				response.Body.Close() // else leak
-				rChan <- urlCode{url, response.StatusCode, d, nil}
+				rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
 			}
 
 			if SleepTime > 0 {
@@ -251,4 +252,18 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 			}
 		}
 	}
+}
+
+// ByteFormat returns a human-readable string representation of a byte count
+func ByteFormat(num_in int64) string {
+	suffix := "B"
+	num := float64(num_in)
+	units := []string{"", "K", "M", "G", "T", "P", "E", "Z"} // "Y" caught  below
+	for _, unit := range units {
+		if num < 1024.0 {
+			return fmt.Sprintf("%3.1f%s%s", num, unit, suffix)
+		}
+		num = (num / 1024)
+	}
+	return fmt.Sprintf("%.1f%s%s", num, "Y", suffix)
 }
