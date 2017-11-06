@@ -209,7 +209,7 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 
 	}
 	// POST: we've seen EOF
-	DebugOut.Println("EOF seen after %d lines\n", count)
+	DebugOut.Printf("EOF seen after %d lines\n", count)
 
 }
 
