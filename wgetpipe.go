@@ -10,11 +10,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"github.com/cheggaaa/pb"
 	"github.com/fatih/color"
 	"github.com/viki-org/dnscache"
+	"golang.org/x/net/context/ctxhttp"
 	"io/ioutil"
 	"log"
 	"net"
@@ -36,6 +38,7 @@ var (
 	useBar     bool          // Use progress bar
 	totalGuess int           // Guesstimate of number of GETs (useful with -bar)
 	debug      bool          // Enable debugging
+	timeout    time.Duration // How long each GET request may take
 
 	OutFormat int         = log.Ldate | log.Ltime | log.Lshortfile
 	DebugOut  *log.Logger = log.New(ioutil.Discard, "[DEBUG] ", OutFormat)
@@ -55,6 +58,7 @@ func init() {
 	flag.BoolVar(&NoColor, "nocolor", false, "Don't colorize the output")
 	flag.BoolVar(&Summary, "stats", false, "Output stats at the end")
 	flag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
+	flag.DurationVar(&timeout, "timeout", 0, "Amount of time to allow each GET request (e.g. 30s, 5m)")
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
 	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
@@ -116,7 +120,7 @@ func main() {
 
 	// Spawn off the getters
 	for g := 0; g < MAX; g++ {
-		go getter(getChan, rChan, doneChan, abortChan)
+		go getter(getChan, rChan, doneChan, abortChan, timeout)
 	}
 
 	// Block until all the getters are done, and then close rChan
@@ -217,8 +221,14 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 // running HTTP GETs for anything in the receive channel, returning
 // formatted responses to the send channel, and signalling completion
 // via the done channel
-func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortChan chan bool) {
+func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortChan chan bool, timeout time.Duration) {
 	defer func() { doneChan <- true }()
+
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+	c := &http.Client{}
 
 	for {
 		select {
@@ -235,9 +245,19 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 			}
 			DebugOut.Printf("getter getting %s\n", url)
 
+			// Create the context
+			if timeout > 0 {
+				ctx, cancel = context.WithTimeout(context.Background(), timeout)
+			} else {
+				ctx, cancel = context.WithCancel(context.Background())
+			}
+
+			// GET!
 			s := time.Now()
-			response, err := http.Get(url)
+			response, err := ctxhttp.Get(ctx, c, url)
 			d := time.Since(s)
+			cancel()
+
 			if err != nil {
 				// We assume code 0 to be a non-HTTP error
 				rChan <- urlCode{url, 0, 0, d, err}
