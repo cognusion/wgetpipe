@@ -29,16 +29,17 @@ import (
 )
 
 var (
-	MAX        int           // maximum number of outstanding HTTP get requests allowed
-	SleepTime  time.Duration // Duration to sleep between GETter spawns
-	ErrOnly    bool          // Quiet unless 0 == Code >= 400
-	NoColor    bool          // Disable colorizing
-	NoDnsCache bool          // Disable DNS caching
-	Summary    bool          // Output final stats
-	useBar     bool          // Use progress bar
-	totalGuess int           // Guesstimate of number of GETs (useful with -bar)
-	debug      bool          // Enable debugging
-	timeout    time.Duration // How long each GET request may take
+	MAX           int           // maximum number of outstanding HTTP get requests allowed
+	SleepTime     time.Duration // Duration to sleep between GETter spawns
+	ErrOnly       bool          // Quiet unless 0 == Code >= 400
+	NoColor       bool          // Disable colorizing
+	NoDnsCache    bool          // Disable DNS caching
+	Summary       bool          // Output final stats
+	useBar        bool          // Use progress bar
+	totalGuess    int           // Guesstimate of number of GETs (useful with -bar)
+	debug         bool          // Enable debugging
+	ResponseDebug bool          // Enable full response output if debug
+	timeout       time.Duration // How long each GET request may take
 
 	OutFormat int         = log.Ldate | log.Ltime | log.Lshortfile
 	DebugOut  *log.Logger = log.New(ioutil.Discard, "[DEBUG] ", OutFormat)
@@ -60,6 +61,7 @@ func init() {
 	flag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
 	flag.DurationVar(&timeout, "timeout", 0, "Amount of time to allow each GET request (e.g. 30s, 5m)")
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
+	flag.BoolVar(&ResponseDebug, "responsedebug", false, "Enable full response output if debugging is on")
 	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
 	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
 	flag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
@@ -262,6 +264,14 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 				// We assume code 0 to be a non-HTTP error
 				rChan <- urlCode{url, 0, 0, d, err}
 			} else {
+				if ResponseDebug {
+					b, err := ioutil.ReadAll(response.Body)
+					if err != nil {
+						DebugOut.Printf("Error reading response body: %s\n", err)
+					} else {
+						DebugOut.Printf("<-----\n%s\n----->\n", b)
+					}
+				}
 				response.Body.Close() // else leak
 				rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
 			}
