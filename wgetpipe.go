@@ -13,10 +13,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/cheggaaa/pb"
 	"github.com/fatih/color"
 	"github.com/viki-org/dnscache"
 	"golang.org/x/net/context/ctxhttp"
+	"gopkg.in/cheggaaa/pb.v2"
 	"io/ioutil"
 	"log"
 	"net"
@@ -106,7 +106,8 @@ func main() {
 
 	// Set up the progress bar
 	if useBar {
-		bar = pb.New(totalGuess)
+		tmpl := `{{string . "prefix"}}{{counters . }} {{bar . }} {{percent . }} {{rtime . "ETA %s"}}{{string . "suffix"}}`
+		bar = pb.ProgressBarTemplate(tmpl).New(totalGuess)
 	}
 
 	// Stream the signals we care about
@@ -208,8 +209,8 @@ func scanStdIn(getChan chan string, abortChan chan bool, bar *pb.ProgressBar) {
 		getChan <- scanner.Text()
 		count++
 		if bar != nil {
-			if bar.Total < count {
-				bar.Total += 1
+			if bar.Total() < count {
+				bar.SetTotal(bar.Total() + 1)
 			}
 		}
 
