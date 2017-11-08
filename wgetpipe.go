@@ -229,59 +229,68 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 	var (
 		ctx    context.Context
 		cancel context.CancelFunc
+		abort  bool
 	)
 	c := &http.Client{}
 
-	for {
-		select {
-		case <-abortChan:
-			DebugOut.Println("getter abort seen!")
-			return
-		case url := <-getChan:
-			if url == "" {
-				// We assume an empty request is a closer
-				// as that simplifies our for{select{}} loop
-				// considerably
-				DebugOut.Println("getter empty request seen!")
-				return
-			}
-			DebugOut.Printf("getter getting %s\n", url)
-
-			// Create the context
-			if timeout > 0 {
-				ctx, cancel = context.WithTimeout(context.Background(), timeout)
-			} else {
-				ctx, cancel = context.WithCancel(context.Background())
-			}
-
-			// GET!
-			s := time.Now()
-			response, err := ctxhttp.Get(ctx, c, url)
-			d := time.Since(s)
+	go func() {
+		<-abortChan
+		DebugOut.Println("getter abort seen!")
+		abort = true
+		if cancel != nil {
 			cancel()
+		}
+		return
+	}()
 
-			if err != nil {
-				// We assume code 0 to be a non-HTTP error
-				rChan <- urlCode{url, 0, 0, d, err}
-			} else {
-				if ResponseDebug {
-					b, err := ioutil.ReadAll(response.Body)
-					if err != nil {
-						DebugOut.Printf("Error reading response body: %s\n", err)
-					} else {
-						DebugOut.Printf("<-----\n%s\n----->\n", b)
-					}
+	for url := range getChan {
+		if abort {
+			DebugOut.Println("abort called")
+			return
+		} else if url == "" {
+			// We assume an empty request is a closer
+			// as that simplifies our for{select{}} loop
+			// considerably
+			DebugOut.Println("getter empty request seen!")
+			return
+		}
+		DebugOut.Printf("getter getting %s\n", url)
+
+		// Create the context
+		if timeout > 0 {
+			ctx, cancel = context.WithTimeout(context.Background(), timeout)
+		} else {
+			ctx, cancel = context.WithCancel(context.Background())
+		}
+
+		// GET!
+		s := time.Now()
+		response, err := ctxhttp.Get(ctx, c, url)
+		d := time.Since(s)
+		cancel()
+
+		if err != nil {
+			// We assume code 0 to be a non-HTTP error
+			rChan <- urlCode{url, 0, 0, d, err}
+		} else {
+			if ResponseDebug {
+				b, err := ioutil.ReadAll(response.Body)
+				if err != nil {
+					DebugOut.Printf("Error reading response body: %s\n", err)
+				} else {
+					DebugOut.Printf("<-----\n%s\n----->\n", b)
 				}
-				response.Body.Close() // else leak
-				rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
 			}
+			response.Body.Close() // else leak
+			rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
+		}
 
-			if SleepTime > 0 {
-				// Zzzzzzz
-				time.Sleep(SleepTime)
-			}
+		if SleepTime > 0 {
+			// Zzzzzzz
+			time.Sleep(SleepTime)
 		}
 	}
+
 }
 
 // ByteFormat returns a human-readable string representation of a byte count
