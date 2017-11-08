@@ -234,6 +234,8 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 	c := &http.Client{}
 
 	go func() {
+		// Wait until abort has been signalled,
+		// then cancel all the things
 		<-abortChan
 		DebugOut.Println("getter abort seen!")
 		abort = true
@@ -245,6 +247,8 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 
 	for url := range getChan {
 		if abort {
+			// Edge case: Abort has been called,
+			// but we received a url via getChan
 			DebugOut.Println("abort called")
 			return
 		} else if url == "" {
@@ -283,6 +287,11 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 			}
 			response.Body.Close() // else leak
 			rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
+		}
+
+		if abort {
+			DebugOut.Println("abort called, post")
+			return
 		}
 
 		if SleepTime > 0 {
