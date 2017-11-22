@@ -21,8 +21,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -35,6 +37,7 @@ var (
 	NoColor       bool          // Disable colorizing
 	NoDnsCache    bool          // Disable DNS caching
 	Summary       bool          // Output final stats
+	Save          bool          // Enable saving the file
 	useBar        bool          // Use progress bar
 	totalGuess    int           // Guesstimate of number of GETs (useful with -bar)
 	debug         bool          // Enable debugging
@@ -65,6 +68,7 @@ func init() {
 	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
 	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
 	flag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
+	flag.BoolVar(&Save, "save", false, "Save the content of the files. Into hostname/folders/file.ext files")
 	flag.Parse()
 
 	// Handle boring people
@@ -272,7 +276,6 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 		s := time.Now()
 		response, err := ctxhttp.Get(ctx, c, url)
 		d := time.Since(s)
-		cancel()
 
 		if err != nil {
 			// We assume code 0 to be a non-HTTP error
@@ -285,10 +288,22 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 				} else {
 					DebugOut.Printf("<-----\n%s\n----->\n", b)
 				}
+
+				if Save {
+					err = SaveFile(url, &b)
+				}
+			} else if Save {
+				b, err := ioutil.ReadAll(response.Body)
+				if err != nil {
+					fmt.Printf("Error reading response body: '%s' not saving file '%s'\n", err, url)
+				} else {
+					err = SaveFile(url, &b)
+				}
 			}
 			response.Body.Close() // else leak
 			rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
 		}
+		cancel()
 
 		if abort {
 			DebugOut.Println("abort called, post")
@@ -315,4 +330,32 @@ func ByteFormat(num_in int64) string {
 		num = (num / 1024)
 	}
 	return fmt.Sprintf("%.1f%s%s", num, "Y", suffix)
+}
+
+// SaveFile takes a URL and a pointer to a []byte containing the to-be-saved bytes,
+// and saves the full url as the path (sans scheme).
+// e.g. 'https://somewhere.com/1/2/3/4/5.html' will be saved as './somewhere.com/1/2/3/4/5.html'
+func SaveFile(saveAs string, contents *[]byte) error {
+	url, err := url.Parse(saveAs)
+	if err != nil {
+		return err
+	}
+
+	dirs := path.Dir(url.Path)
+	if !strings.HasPrefix(dirs, "/") {
+		// Sanity!
+		dirs = "/" + dirs
+	}
+
+	DebugOut.Printf("Saved File Path: '%s%s' full: '%s%s'\n", url.Hostname(), dirs, url.Hostname(), url.Path)
+	err = os.MkdirAll(fmt.Sprintf("%s%s", url.Hostname(), dirs), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(fmt.Sprintf("%s%s", url.Hostname(), url.Path), *contents, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	return nil
 }

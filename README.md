@@ -22,6 +22,8 @@ It scans STDIN, spawning up to _-max_ getters at a time, which stream their resp
     	Disable DNS caching
   -responsedebug
     	Enable full response output if debugging is on
+  -save
+    	Save the content of the files. Into hostname/folders/file.ext files
   -sleep duration
     	Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)
   -stats
