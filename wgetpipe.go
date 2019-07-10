@@ -9,14 +9,16 @@ package main
 */
 
 import (
+	"github.com/cheggaaa/pb/v3"
+	"github.com/cognusion/go-humanity"
+	"github.com/fatih/color"
+	"github.com/viki-org/dnscache"
+	"golang.org/x/net/context/ctxhttp"
+
 	"bufio"
 	"context"
 	"flag"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/viki-org/dnscache"
-	"golang.org/x/net/context/ctxhttp"
-	"gopkg.in/cheggaaa/pb.v2"
 	"io/ioutil"
 	"log"
 	"net"
@@ -31,11 +33,11 @@ import (
 )
 
 var (
-	MAX           int           // maximum number of outstanding HTTP get requests allowed
+	MaxRequests   int           // maximum number of outstanding HTTP get requests allowed
 	SleepTime     time.Duration // Duration to sleep between GETter spawns
 	ErrOnly       bool          // Quiet unless 0 == Code >= 400
 	NoColor       bool          // Disable colorizing
-	NoDnsCache    bool          // Disable DNS caching
+	NoDNSCache    bool          // Disable DNS caching
 	Summary       bool          // Output final stats
 	Save          bool          // Enable saving the file
 	useBar        bool          // Use progress bar
@@ -44,12 +46,12 @@ var (
 	ResponseDebug bool          // Enable full response output if debug
 	timeout       time.Duration // How long each GET request may take
 
-	OutFormat int         = log.Ldate | log.Ltime | log.Lshortfile
-	DebugOut  *log.Logger = log.New(ioutil.Discard, "[DEBUG] ", OutFormat)
+	OutFormat = log.Ldate | log.Ltime | log.Lshortfile
+	DebugOut  = log.New(ioutil.Discard, "[DEBUG] ", OutFormat)
 )
 
 type urlCode struct {
-	Url  string
+	URL  string
 	Code int
 	Size int64
 	Dur  time.Duration
@@ -57,7 +59,7 @@ type urlCode struct {
 }
 
 func init() {
-	flag.IntVar(&MAX, "max", 5, "Maximium in-flight GET requests at a time")
+	flag.IntVar(&MaxRequests, "max", 5, "Maximium in-flight GET requests at a time")
 	flag.BoolVar(&ErrOnly, "errorsonly", false, "Only output errors (HTTP Codes >= 400)")
 	flag.BoolVar(&NoColor, "nocolor", false, "Don't colorize the output")
 	flag.BoolVar(&Summary, "stats", false, "Output stats at the end")
@@ -65,7 +67,7 @@ func init() {
 	flag.DurationVar(&timeout, "timeout", 0, "Amount of time to allow each GET request (e.g. 30s, 5m)")
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&ResponseDebug, "responsedebug", false, "Enable full response output if debugging is on")
-	flag.BoolVar(&NoDnsCache, "nodnscache", false, "Disable DNS caching")
+	flag.BoolVar(&NoDNSCache, "nodnscache", false, "Disable DNS caching")
 	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
 	flag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
 	flag.BoolVar(&Save, "save", false, "Save the content of the files. Into hostname/folders/file.ext files")
@@ -82,7 +84,7 @@ func init() {
 	}
 
 	// Sets the default http client to use dnscache, because duh
-	if NoDnsCache == false {
+	if NoDNSCache == false {
 		res := dnscache.New(1 * time.Hour)
 		http.DefaultClient.Transport = &http.Transport{
 			MaxIdleConnsPerHost: 64,
@@ -98,11 +100,11 @@ func init() {
 func main() {
 
 	var bar *pb.ProgressBar
-	getChan := make(chan string, MAX*10) // Channel to stream URLs to get
-	rChan := make(chan urlCode)          // Channel to stream responses from the Gets
-	doneChan := make(chan bool)          // Channel to signal a getter is done
-	sigChan := make(chan os.Signal, 1)   // Channel to stream signals
-	abortChan := make(chan bool)         // Channel to tell the getters to abort
+	getChan := make(chan string, MaxRequests*10) // Channel to stream URLs to get
+	rChan := make(chan urlCode)                  // Channel to stream responses from the Gets
+	doneChan := make(chan bool)                  // Channel to signal a getter is done
+	sigChan := make(chan os.Signal, 1)           // Channel to stream signals
+	abortChan := make(chan bool)                 // Channel to tell the getters to abort
 	count := 0
 	error4s := 0
 	error5s := 0
@@ -126,7 +128,7 @@ func main() {
 	}()
 
 	// Spawn off the getters
-	for g := 0; g < MAX; g++ {
+	for g := 0; g < MaxRequests; g++ {
 		go getter(getChan, rChan, doneChan, abortChan, timeout)
 	}
 
@@ -134,9 +136,9 @@ func main() {
 	go func() {
 		defer close(rChan)
 
-		for c := 0; c < MAX; c++ {
+		for c := 0; c < MaxRequests; c++ {
 			<-doneChan
-			DebugOut.Printf("Done %d/%d\n", c+1, MAX)
+			DebugOut.Printf("Done %d/%d\n", c+1, MaxRequests)
 		}
 	}()
 
@@ -159,25 +161,25 @@ func main() {
 			if useBar {
 				continue
 			}
-			color.Red("%d (%s) %s %s (%s)\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String(), i.Err)
+			color.Red("%d (%s) %s %s (%s)\n", i.Code, humanity.ByteFormat(i.Size), i.URL, i.Dur.String(), i.Err)
 		} else if i.Code < 400 {
 			if ErrOnly || useBar {
 				// skip
 				continue
 			}
-			color.Green("%d (%s) %s %s\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String())
+			color.Green("%d (%s) %s %s\n", i.Code, humanity.ByteFormat(i.Size), i.URL, i.Dur.String())
 		} else if i.Code < 500 {
 			error4s++
 			if useBar {
 				continue
 			}
-			color.Yellow("%d (%s) %s %s\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String())
+			color.Yellow("%d (%s) %s %s\n", i.Code, humanity.ByteFormat(i.Size), i.URL, i.Dur.String())
 		} else {
 			error5s++
 			if useBar {
 				continue
 			}
-			color.Red("%d (%s) %s %s\n", i.Code, ByteFormat(i.Size), i.Url, i.Dur.String())
+			color.Red("%d (%s) %s %s\n", i.Code, humanity.ByteFormat(i.Size), i.URL, i.Dur.String())
 		}
 	}
 
@@ -290,18 +292,18 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 				}
 
 				if Save {
-					err = SaveFile(url, &b)
+					SaveFile(url, &b)
 				}
 			} else if Save {
 				b, err := ioutil.ReadAll(response.Body)
 				if err != nil {
 					fmt.Printf("Error reading response body: '%s' not saving file '%s'\n", err, url)
 				} else {
-					err = SaveFile(url, &b)
+					SaveFile(url, &b)
 				}
 			}
-			response.Body.Close() // else leak
 			rChan <- urlCode{url, response.StatusCode, response.ContentLength, d, nil}
+			response.Body.Close() // else leak
 		}
 		cancel()
 
@@ -316,20 +318,6 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 		}
 	}
 
-}
-
-// ByteFormat returns a human-readable string representation of a byte count
-func ByteFormat(num_in int64) string {
-	suffix := "B"
-	num := float64(num_in)
-	units := []string{"", "K", "M", "G", "T", "P", "E", "Z"} // "Y" caught  below
-	for _, unit := range units {
-		if num < 1024.0 {
-			return fmt.Sprintf("%3.1f%s%s", num, unit, suffix)
-		}
-		num = (num / 1024)
-	}
-	return fmt.Sprintf("%.1f%s%s", num, "Y", suffix)
 }
 
 // SaveFile takes a URL and a pointer to a []byte containing the to-be-saved bytes,
