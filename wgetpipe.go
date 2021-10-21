@@ -84,7 +84,7 @@ func init() {
 	}
 
 	// Sets the default http client to use dnscache, because duh
-	if NoDNSCache == false {
+	if !NoDNSCache {
 		res := dnscache.New(1 * time.Hour)
 		http.DefaultClient.Transport = &http.Transport{
 			MaxIdleConnsPerHost: 64,
@@ -249,7 +249,6 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 		if cancel != nil {
 			cancel()
 		}
-		return
 	}()
 
 	for url := range getChan {
