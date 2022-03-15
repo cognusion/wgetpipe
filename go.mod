@@ -1,10 +1,10 @@
 module github.com/cognusion/wgetpipe
 
-go 1.17
+go 1.18
 
 require (
 	github.com/cheggaaa/pb/v3 v3.0.8
-	github.com/cognusion/go-humanity v1.0.0
+	github.com/cognusion/go-humanity v1.1.0
 	github.com/fatih/color v1.13.0
 	github.com/viki-org/dnscache v0.0.0-20130720023526-c70c1f23c5d8
 	golang.org/x/net v0.0.0-20211020060615-d418f374d309
