@@ -7,7 +7,7 @@ require (
 	github.com/cognusion/go-humanity v1.3.0
 	github.com/fatih/color v1.13.0
 	github.com/viki-org/dnscache v0.0.0-20130720023526-c70c1f23c5d8
-	golang.org/x/net v0.19.0
+	golang.org/x/net v0.24.0
 )
 
 require (
@@ -17,5 +17,5 @@ require (
 	github.com/mattn/go-runewidth v0.0.12 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
 )
