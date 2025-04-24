@@ -19,7 +19,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -32,6 +32,7 @@ import (
 	"time"
 )
 
+// Global-ish vars.
 var (
 	MaxRequests   int           // maximum number of outstanding HTTP get requests allowed
 	SleepTime     time.Duration // Duration to sleep between GETter spawns
@@ -47,7 +48,7 @@ var (
 	timeout       time.Duration // How long each GET request may take
 
 	OutFormat = log.Ldate | log.Ltime | log.Lshortfile
-	DebugOut  = log.New(ioutil.Discard, "[DEBUG] ", OutFormat)
+	DebugOut  = log.New(io.Discard, "[DEBUG] ", OutFormat)
 )
 
 type urlCode struct {
@@ -283,7 +284,7 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 			rChan <- urlCode{url, 0, 0, d, err}
 		} else {
 			if ResponseDebug {
-				b, err := ioutil.ReadAll(response.Body)
+				b, err := io.ReadAll(response.Body)
 				if err != nil {
 					DebugOut.Printf("Error reading response body: %s\n", err)
 				} else {
@@ -294,7 +295,7 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 					SaveFile(url, &b)
 				}
 			} else if Save {
-				b, err := ioutil.ReadAll(response.Body)
+				b, err := io.ReadAll(response.Body)
 				if err != nil {
 					fmt.Printf("Error reading response body: '%s' not saving file '%s'\n", err, url)
 				} else {
@@ -340,7 +341,7 @@ func SaveFile(saveAs string, contents *[]byte) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(fmt.Sprintf("%s%s", url.Hostname(), url.Path), *contents, os.ModePerm)
+	err = os.WriteFile(fmt.Sprintf("%s%s", url.Hostname(), url.Path), *contents, os.ModePerm)
 	if err != nil {
 		return err
 	}
