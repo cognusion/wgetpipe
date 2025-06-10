@@ -11,9 +11,9 @@ package main
 import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/cognusion/go-humanity"
+	"github.com/cognusion/go-rangetripper/v2"
 	"github.com/fatih/color"
 	"github.com/viki-org/dnscache"
-	"golang.org/x/net/context/ctxhttp"
 
 	"bufio"
 	"context"
@@ -46,6 +46,10 @@ var (
 	debug         bool          // Enable debugging
 	ResponseDebug bool          // Enable full response output if debug
 	timeout       time.Duration // How long each GET request may take
+	chunkString   string        // Enable GET using ranges (large files)
+	chunkSize     int64         // Numeric version of the prior.
+
+	Client = new(http.Client)
 
 	OutFormat = log.Ldate | log.Ltime | log.Lshortfile
 	DebugOut  = log.New(io.Discard, "[DEBUG] ", OutFormat)
@@ -72,6 +76,7 @@ func init() {
 	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
 	flag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
 	flag.BoolVar(&Save, "save", false, "Save the content of the files. Into hostname/folders/file.ext files")
+	flag.StringVar(&chunkString, "size", "", "Size of chunks to download (whole-numbers with suffixes of B,KB,MB,GB,PB)")
 	flag.Parse()
 
 	// Handle boring people
@@ -82,6 +87,21 @@ func init() {
 	// Handle debug
 	if debug {
 		DebugOut = log.New(os.Stderr, "[DEBUG] ", OutFormat)
+	}
+
+	// Handle chunk string-to-byte conversion
+	if chunkString != "" {
+		var cerr error
+		chunkSize, cerr = humanity.StringAsBytes(chunkString)
+		if cerr != nil {
+			fmt.Printf("Please use wholenumbers with suffixes of B,KB,MB,GB,PB")
+			flag.Usage()
+			os.Exit(1)
+		}
+
+		rt, _ := rangetripper.NewWithLoggers(10, nil, DebugOut)
+		rt.SetChunkSize(chunkSize)
+		Client.Transport = rt
 	}
 
 	// Sets the default http client to use dnscache, because duh
@@ -129,7 +149,7 @@ func main() {
 	}()
 
 	// Spawn off the getters
-	for g := 0; g < MaxRequests; g++ {
+	for range MaxRequests {
 		go getter(getChan, rChan, doneChan, abortChan, timeout)
 	}
 
@@ -137,7 +157,7 @@ func main() {
 	go func() {
 		defer close(rChan)
 
-		for c := 0; c < MaxRequests; c++ {
+		for c := range MaxRequests {
 			<-doneChan
 			DebugOut.Printf("Done %d/%d\n", c+1, MaxRequests)
 		}
@@ -239,7 +259,6 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 		cancel context.CancelFunc
 		abort  bool
 	)
-	c := &http.Client{}
 
 	go func() {
 		// Wait until abort has been signalled,
@@ -275,12 +294,16 @@ func getter(getChan chan string, rChan chan urlCode, doneChan chan bool, abortCh
 		}
 
 		// GET!
+
+		req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+
 		s := time.Now()
-		response, err := ctxhttp.Get(ctx, c, url)
+		response, err := Client.Do(req)
 		d := time.Since(s)
 
 		if err != nil {
 			// We assume code 0 to be a non-HTTP error
+			DebugOut.Printf("Client.Do fetching '%s' returned error: %+v\n", url, err)
 			rChan <- urlCode{url, 0, 0, d, err}
 		} else {
 			if ResponseDebug {

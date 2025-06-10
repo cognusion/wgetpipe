@@ -1,7 +1,7 @@
 # wgetpipe
 Wgetpipe takes a list of fully-qualified URLs over STDIN and Gets them, outputting the code, url and elapsed fetch time. 
 
-It scans STDIN, spawning up to _-max_ getters at a time, which stream their responses back to the collator to format the output. This tool was generated to aid in seeding pull-through caches, but has utility in othere areas as well
+It scans STDIN, spawning up to _-max_ getters at a time, which stream their responses back to the collator to format the output. This tool was generated to aid in seeding pull-through caches, but has utility in other areas as well
 
 ## Usage
 
@@ -24,12 +24,15 @@ It scans STDIN, spawning up to _-max_ getters at a time, which stream their resp
     	Enable full response output if debugging is on
   -save
     	Save the content of the files. Into hostname/folders/file.ext files
+  -size string
+    	Size of chunks to download (whole-numbers with suffixes of B,KB,MB,GB,PB)
   -sleep duration
     	Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)
   -stats
     	Output stats at the end
   -timeout duration
     	Amount of time to allow each GET request (e.g. 30s, 5m)
+
 ```
 
 ## Licensing
