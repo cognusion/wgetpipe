@@ -12,6 +12,7 @@ import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/cognusion/go-humanity"
 	"github.com/cognusion/go-rangetripper/v2"
+	"github.com/cognusion/go-signalhandler"
 	"github.com/fatih/color"
 	"github.com/viki-org/dnscache"
 
@@ -25,10 +26,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"path"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -124,7 +123,6 @@ func main() {
 	getChan := make(chan string, MaxRequests*10) // Channel to stream URLs to get
 	rChan := make(chan urlCode)                  // Channel to stream responses from the Gets
 	doneChan := make(chan bool)                  // Channel to signal a getter is done
-	sigChan := make(chan os.Signal, 1)           // Channel to stream signals
 	abortChan := make(chan bool)                 // Channel to tell the getters to abort
 	count := 0
 	error4s := 0
@@ -137,16 +135,8 @@ func main() {
 		bar = pb.ProgressBarTemplate(tmpl).New(totalGuess)
 	}
 
-	// Stream the signals we care about
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Signal handler
-	go func() {
-		<-sigChan
-		DebugOut.Println("Signal seen, sending abort!")
-
-		close(abortChan)
-	}()
+	sigDone := signalhandler.Simple(func(os.Signal) { close(abortChan) })
+	defer sigDone()
 
 	// Spawn off the getters
 	for range MaxRequests {
