@@ -1,14 +1,14 @@
 module github.com/cognusion/wgetpipe
 
-go 1.24.6
+go 1.25.1
 
 require (
 	github.com/cheggaaa/pb/v3 v3.1.7
+	github.com/cognusion/dnscache v0.5.0
 	github.com/cognusion/go-humanity v1.3.0
 	github.com/cognusion/go-rangetripper/v2 v2.1.0
 	github.com/cognusion/go-signalhandler v0.1.0
 	github.com/fatih/color v1.18.0
-	github.com/viki-org/dnscache v0.0.0-20130720023526-c70c1f23c5d8
 )
 
 require (

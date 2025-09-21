@@ -10,11 +10,11 @@ package main
 
 import (
 	"github.com/cheggaaa/pb/v3"
+	"github.com/cognusion/dnscache"
 	"github.com/cognusion/go-humanity"
 	"github.com/cognusion/go-rangetripper/v2"
 	"github.com/cognusion/go-signalhandler"
 	"github.com/fatih/color"
-	"github.com/viki-org/dnscache"
 
 	"bufio"
 	"context"
@@ -99,6 +99,19 @@ func init() {
 		DebugOut = log.New(os.Stderr, "[DEBUG] ", OutFormat)
 	}
 
+	// Sets the default http client to use dnscache, because duh
+	if !NoDNSCache {
+		res := dnscache.New(1 * time.Hour)
+		http.DefaultClient.Transport = &http.Transport{
+			MaxIdleConnsPerHost: 64,
+			Dial: func(network string, address string) (net.Conn, error) {
+				separator := strings.LastIndex(address, ":")
+				ip, _ := res.FetchOneString(address[:separator])
+				return net.Dial("tcp", ip+address[separator:])
+			},
+		}
+	}
+
 	// Handle chunk string-to-byte conversion
 	if chunkString != "" {
 		var cerr error
@@ -113,19 +126,6 @@ func init() {
 		rt.SetChunkSize(chunkSize)
 		rt.SetClient(http.DefaultClient)
 		Client.Transport = rt
-	}
-
-	// Sets the default http client to use dnscache, because duh
-	if !NoDNSCache {
-		res := dnscache.New(1 * time.Hour)
-		http.DefaultClient.Transport = &http.Transport{
-			MaxIdleConnsPerHost: 64,
-			Dial: func(network string, address string) (net.Conn, error) {
-				separator := strings.LastIndex(address, ":")
-				ip, _ := res.FetchOneString(address[:separator])
-				return net.Dial("tcp", ip+address[separator:])
-			},
-		}
 	}
 }
 
