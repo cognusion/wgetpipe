@@ -44,12 +44,14 @@ var (
 	useBar        bool          // Use progress bar
 	totalGuess    int           // Guesstimate of number of GETs (useful with -bar)
 	debug         bool          // Enable debugging
+	debugCache    bool          // Enable dnscache debugging
 	ResponseDebug bool          // Enable full response output if debug
 	timeout       time.Duration // How long each GET request may take
 	chunkString   string        // Enable GET using ranges (large files)
 	chunkSize     int64         // Numeric version of the prior.
 
-	Client = new(http.Client)
+	Client   = new(http.Client)
+	resolver *dnscache.Resolver
 
 	OutFormat = log.Ldate | log.Ltime | log.Lshortfile
 	DebugOut  = log.New(io.Discard, "[DEBUG] ", OutFormat)
@@ -87,11 +89,20 @@ func init() {
 	pflag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
 	pflag.BoolVar(&Save, "save", false, "Save the content of the files. Into hostname/folders/file.ext files")
 	pflag.StringVar(&chunkString, "size", "", "Size of chunks to download (whole-numbers with suffixes of B,KB,MB,GB,PB)")
+	pflag.BoolVar(&debugCache, "debugcache", false, "Enable to debug the DNS cache (autoenables debug, incompatible with nodnscache)")
+
+	pflag.CommandLine.MarkHidden("debugcache")
 	pflag.Parse()
 
 	// Handle boring people
 	if NoColor {
 		color.NoColor = true
+	}
+
+	// Sanity
+	if debugCache {
+		debug = true
+		NoDNSCache = false
 	}
 
 	// Handle debug
@@ -101,12 +112,21 @@ func init() {
 
 	// Sets the default http client to use dnscache, because duh
 	if !NoDNSCache {
-		res := dnscache.New(1 * time.Hour)
+		resolver = dnscache.New(1 * time.Hour)
+
+		Client.Transport = &http.Transport{
+			MaxIdleConnsPerHost: 64,
+			Dial: func(network string, address string) (net.Conn, error) {
+				separator := strings.LastIndex(address, ":")
+				ip, _ := resolver.FetchOneString(address[:separator])
+				return net.Dial("tcp", ip+address[separator:])
+			},
+		}
 		http.DefaultClient.Transport = &http.Transport{
 			MaxIdleConnsPerHost: 64,
 			Dial: func(network string, address string) (net.Conn, error) {
 				separator := strings.LastIndex(address, ":")
-				ip, _ := res.FetchOneString(address[:separator])
+				ip, _ := resolver.FetchOneString(address[:separator])
 				return net.Dial("tcp", ip+address[separator:])
 			},
 		}
@@ -319,6 +339,10 @@ func getter(getChan chan string, rChan chan urlCode, abortChan chan bool, timeou
 		s := time.Now()
 		response, err := Client.Do(req)
 		d := time.Since(s)
+
+		if debugCache {
+			DebugOut.Printf("[CACHE] %+v\n", resolver)
+		}
 
 		if err != nil {
 			// We assume code 0 to be a non-HTTP error
