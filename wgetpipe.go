@@ -15,10 +15,10 @@ import (
 	"github.com/cognusion/go-rangetripper/v2"
 	"github.com/cognusion/go-signalhandler"
 	"github.com/fatih/color"
+	"github.com/spf13/pflag"
 
 	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -74,20 +74,20 @@ type stat struct {
 }
 
 func init() {
-	flag.IntVar(&MaxRequests, "max", 5, "Maximium in-flight GET requests at a time")
-	flag.BoolVar(&ErrOnly, "errorsonly", false, "Only output errors (HTTP Codes >= 400)")
-	flag.BoolVar(&NoColor, "nocolor", false, "Don't colorize the output")
-	flag.BoolVar(&Summary, "stats", false, "Output stats at the end")
-	flag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
-	flag.DurationVar(&timeout, "timeout", 0, "Amount of time to allow each GET request (e.g. 30s, 5m)")
-	flag.BoolVar(&debug, "debug", false, "Enable debug output")
-	flag.BoolVar(&ResponseDebug, "responsedebug", false, "Enable full response output if debugging is on")
-	flag.BoolVar(&NoDNSCache, "nodnscache", false, "Disable DNS caching")
-	flag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
-	flag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
-	flag.BoolVar(&Save, "save", false, "Save the content of the files. Into hostname/folders/file.ext files")
-	flag.StringVar(&chunkString, "size", "", "Size of chunks to download (whole-numbers with suffixes of B,KB,MB,GB,PB)")
-	flag.Parse()
+	pflag.IntVar(&MaxRequests, "max", 5, "Maximium in-flight GET requests at a time")
+	pflag.BoolVar(&ErrOnly, "errorsonly", false, "Only output errors (HTTP Codes >= 400)")
+	pflag.BoolVar(&NoColor, "nocolor", false, "Don't colorize the output")
+	pflag.BoolVar(&Summary, "stats", false, "Output stats at the end")
+	pflag.DurationVar(&SleepTime, "sleep", 0, "Amount of time to sleep between spawning a GETter (e.g. 1ms, 10s)")
+	pflag.DurationVar(&timeout, "timeout", 0, "Amount of time to allow each GET request (e.g. 30s, 5m)")
+	pflag.BoolVar(&debug, "debug", false, "Enable debug output")
+	pflag.BoolVar(&ResponseDebug, "responsedebug", false, "Enable full response output if debugging is on")
+	pflag.BoolVar(&NoDNSCache, "nodnscache", false, "Disable DNS caching")
+	pflag.BoolVar(&useBar, "bar", false, "Use progress bar instead of printing lines, can still use -stats")
+	pflag.IntVar(&totalGuess, "guess", 0, "Rough guess of how many GETs will be coming for -bar to start at. It will adjust")
+	pflag.BoolVar(&Save, "save", false, "Save the content of the files. Into hostname/folders/file.ext files")
+	pflag.StringVar(&chunkString, "size", "", "Size of chunks to download (whole-numbers with suffixes of B,KB,MB,GB,PB)")
+	pflag.Parse()
 
 	// Handle boring people
 	if NoColor {
@@ -118,7 +118,7 @@ func init() {
 		chunkSize, cerr = humanity.StringAsBytes(chunkString)
 		if cerr != nil {
 			fmt.Printf("Please use wholenumbers with suffixes of B,KB,MB,GB,PB")
-			flag.Usage()
+			pflag.Usage()
 			os.Exit(1)
 		}
 

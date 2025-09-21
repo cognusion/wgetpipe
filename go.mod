@@ -9,6 +9,7 @@ require (
 	github.com/cognusion/go-rangetripper/v2 v2.1.0
 	github.com/cognusion/go-signalhandler v0.1.0
 	github.com/fatih/color v1.18.0
+	github.com/spf13/pflag v1.0.10
 )
 
 require (
