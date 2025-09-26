@@ -11,6 +11,7 @@ package main
 import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/cognusion/dnscache"
+	"github.com/cognusion/dnscache/cache"
 	"github.com/cognusion/go-humanity"
 	"github.com/cognusion/go-rangetripper/v2"
 	"github.com/cognusion/go-signalhandler"
@@ -51,6 +52,7 @@ var (
 	chunkSize     int64         // Numeric version of the prior.
 
 	Client   = new(http.Client)
+	rcache   dnscache.ResolverCache // We manually create a cache and pass it to the Resolver for debugging
 	resolver *dnscache.Resolver
 
 	OutFormat = log.Ldate | log.Ltime | log.Lshortfile
@@ -112,7 +114,15 @@ func init() {
 
 	// Sets the default http client to use dnscache, because duh
 	if !NoDNSCache {
-		resolver = dnscache.New(1 * time.Hour)
+		// The errors can be ignored, as we are not passing any options,
+		// and Simple has no requirements.
+		rcache, _ = cache.NewSimple()
+
+		resolver = dnscache.NewFromConfig(
+			&dnscache.ResolverConfig{
+				Cache: rcache,
+			},
+		)
 
 		Client.Transport = &http.Transport{
 			MaxIdleConnsPerHost: 64,
@@ -341,7 +351,7 @@ func getter(getChan chan string, rChan chan urlCode, abortChan chan bool, timeou
 		d := time.Since(s)
 
 		if debugCache {
-			DebugOut.Printf("[CACHE] %+v\n", resolver)
+			DebugOut.Printf("[CACHE] %+v\n", rcache)
 		}
 
 		if err != nil {

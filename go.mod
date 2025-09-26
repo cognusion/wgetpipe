@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/cheggaaa/pb/v3 v3.1.7
-	github.com/cognusion/dnscache v0.5.0
+	github.com/cognusion/dnscache v1.1.0
 	github.com/cognusion/go-humanity v1.3.0
 	github.com/cognusion/go-rangetripper/v2 v2.1.0
 	github.com/cognusion/go-signalhandler v0.1.0
@@ -19,6 +19,7 @@ require (
 	github.com/cognusion/go-timings v1.2.0 // indirect
 	github.com/cognusion/semaphore v1.2.0 // indirect
 	github.com/eapache/go-resiliency v1.7.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect

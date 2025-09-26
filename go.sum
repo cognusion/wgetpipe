@@ -2,8 +2,8 @@ github.com/VividCortex/ewma v1.2.0 h1:f58SaIzcDXrSy3kWaHNvuJgJ3Nmz59Zji6XoJR/q1o
 github.com/VividCortex/ewma v1.2.0/go.mod h1:nz4BbCtbLyFDeC9SUHbtcT5644juEuWfUAUnGx7j5l4=
 github.com/cheggaaa/pb/v3 v3.1.7 h1:2FsIW307kt7A/rz/ZI2lvPO+v3wKazzE4K/0LtTWsOI=
 github.com/cheggaaa/pb/v3 v3.1.7/go.mod h1:/Ji89zfVPeC/u5j8ukD0MBPHt2bzTYp74lQ7KlgFWTQ=
-github.com/cognusion/dnscache v0.5.0 h1:e56jL2mu+q0oxqtEEnFxl78UE7xUYkSA1K/QEK1DEhw=
-github.com/cognusion/dnscache v0.5.0/go.mod h1:EYwodmIOwJ7ABt4EBuZ7JiChUZCIcRuZMm/HjA9qHQc=
+github.com/cognusion/dnscache v1.1.0 h1:s56fJRAdjYye9Rx9AI5c6ipvCgL1CDh71bYG1/LHSw0=
+github.com/cognusion/dnscache v1.1.0/go.mod h1:vkNXvL7kBdGkFaBgQvQM+/rkgPCO6Sg2QC0VXHTshuE=
 github.com/cognusion/go-humanity v1.3.0 h1:06/WaNW34Osg/CLEddz6HVsPQ7FpCjuve5peTU1mz9k=
 github.com/cognusion/go-humanity v1.3.0/go.mod h1:5TovZd/sNx1ZT2BpkqgY0wjpu22ZMZTtKr+8EO+VJ6w=
 github.com/cognusion/go-rangetripper/v2 v2.1.0 h1:INzgbVsbdTLYwYU2PPjwTnSrHUTX08/yJQzjYMejJuY=
@@ -28,6 +28,8 @@ github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8
 github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
 github.com/gopherjs/gopherjs v1.17.2 h1:fQnZVsXk8uxXIStYb0N4bGk7jeyTalG/wsZjQ25dO0g=
 github.com/gopherjs/gopherjs v1.17.2/go.mod h1:pRRIvn/QzFLrKfvEz3qUuEhtE/zLCWfreZ6J5gM2i+k=
+github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
+github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7C0MuV77Wo=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE=
